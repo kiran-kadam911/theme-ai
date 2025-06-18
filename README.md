@@ -33,21 +33,35 @@ Before using this tool, make sure you have the following installed:
 You can install this tool globally to use from anywhere:
 
 ```bash
-npm install -g theme-stack-analyzer
+npm install -g @kirank911/theme-ai
 ```
 
 Or use it locally in a project:
 
 ```bash
-npm install --save-dev theme-stack-analyzer
+npm install --save-dev @kirank911/theme-ai
 ```
 
 ---
 
 ## 🚀 Usage
 
+If installed globally, run:
+
 ```bash
-theme-analyzer
+theme-ai
+```
+
+If installed locally, use npx:
+
+```bash
+npx theme-ai
+```
+
+Or run via npm script (if added in your package.json scripts section):
+
+```bash
+npm run analyze
 ```
 
 Make sure you are inside the directory containing `package.json`.

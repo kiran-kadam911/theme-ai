@@ -4,15 +4,23 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
-import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import chalk from 'chalk';
+import OpenAI from 'openai';
 
 dotenv.config();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
+let openai = null;
+
+if (hasOpenAIKey) {
+  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+} else {
+  console.warn(chalk.yellow('⚠️ No OpenAI API key found. AI suggestions will be skipped.\n'));
+}
 
 function readPackageJson() {
   const filePath = path.join(__dirname, 'package.json');
@@ -39,21 +47,16 @@ function recommendNodeVersion(pkg) {
 
 function scanForScssFiles(baseDir) {
   const result = [];
-
   const ignoredDirs = ['node_modules', '.git', 'dist', 'build', 'vendor'];
 
   function walk(dir) {
     if (!fs.existsSync(dir)) return;
-
     const files = fs.readdirSync(dir, { withFileTypes: true });
 
     for (const file of files) {
       const fullPath = path.join(dir, file.name);
-
-      if (file.isDirectory()) {
-        if (!ignoredDirs.includes(file.name)) {
-          walk(fullPath);
-        }
+      if (file.isDirectory() && !ignoredDirs.includes(file.name)) {
+        walk(fullPath);
       } else if (file.name.endsWith('.scss')) {
         result.push(fullPath);
       }
@@ -125,14 +128,22 @@ function detectStacksFromFiles() {
 }
 
 async function askAI(prompt) {
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4',
-    messages: [
-      { role: 'system', content: 'You are a helpful assistant for developers.' },
-      { role: 'user', content: prompt },
-    ],
-  });
-  return response.choices[0].message.content.trim();
+  if (!hasOpenAIKey) {
+    return '⚠️ Skipping AI suggestions (no API key found).';
+  }
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [
+        { role: 'system', content: 'You are a helpful assistant for developers.' },
+        { role: 'user', content: prompt },
+      ],
+    });
+    return response.choices[0].message.content.trim();
+  } catch (err) {
+    return `⚠️ Failed to fetch AI suggestions: ${err.message}`;
+  }
 }
 
 async function runAnalysis() {
@@ -161,7 +172,9 @@ async function runAnalysis() {
     console.log(chalk.green('✅ All packages are up to date.'));
   }
 
-  const aiResponse = await askAI(`Given the following outdated packages:\n${JSON.stringify(outdated, null, 2)}\n\nSuggest which files to update/add/delete in a typical frontend theme (like in a Drupal or Node project), to apply these updates and follow best practices. Also, recommend the correct Node.js LTS version to use.`);
+  const aiPrompt = `Given the following outdated packages:\n${JSON.stringify(outdated, null, 2)}\n\nSuggest which files to update/add/delete in a typical frontend theme (like in a Drupal or Node project), to apply these updates and follow best practices. Also, recommend the correct Node.js LTS version to use.`;
+
+  const aiResponse = await askAI(aiPrompt);
   console.log(chalk.cyan('\n🤖 AI Suggestions:\n'));
   console.log(aiResponse);
 }
