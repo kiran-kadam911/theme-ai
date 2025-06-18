@@ -1,6 +1,6 @@
 {
   "name": "@kirank911/theme-ai",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Analyze your frontend theme stack and dependencies using OpenAI",
   "bin": {
     "theme-ai": "./theme-ai.mjs"
@@ -9,7 +9,14 @@
   "scripts": {
     "analyze": "node theme-ai.mjs"
   },
-  "keywords": ["drupal", "theme", "analyzer", "frontend", "stack", "openai"],
+  "keywords": [
+    "drupal",
+    "theme",
+    "analyzer",
+    "frontend",
+    "stack",
+    "openai"
+  ],
   "author": {
     "name": "Kiran Kadam",
     "url": "https://kiran-kadam911.github.io/kirank/"
