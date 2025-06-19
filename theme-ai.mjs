@@ -7,28 +7,41 @@ import { execSync } from 'child_process';
 import dotenv from 'dotenv';
 import chalk from 'chalk';
 import OpenAI from 'openai';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const ncu = require('npm-check-updates');
+import getPackageJson from 'package-json';
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const projectRoot = process.cwd();
 
 const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
-let openai = null;
+const openai = hasOpenAIKey ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
-if (hasOpenAIKey) {
-  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-} else {
+if (!hasOpenAIKey) {
   console.warn(chalk.yellow('⚠️ No OpenAI API key found. AI suggestions will be skipped.\n'));
 }
 
+function readJson(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
 function readPackageJson() {
-  const filePath = path.join(__dirname, 'package.json');
-  if (!fs.existsSync(filePath)) {
+  const filePath = path.join(projectRoot, 'package.json');
+  const pkg = readJson(filePath);
+  if (!pkg) {
     console.error('❌ package.json not found in current directory.');
     process.exit(1);
   }
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  return pkg;
 }
 
 function getOutdatedPackages() {
@@ -41,23 +54,44 @@ function getOutdatedPackages() {
   }
 }
 
-function recommendNodeVersion(pkg) {
-  return pkg.engines?.node || '18.x (Recommended LTS)';
+async function getRecommendedNodeVersionFromPackages(outdated) {
+  const versions = [];
+  for (const [dep, { latest }] of Object.entries(outdated)) {
+    try {
+      const metadata = await getPackageJson(dep, { version: latest });
+      if (metadata.engines?.node) {
+        versions.push(metadata.engines.node);
+      }
+    } catch {
+      console.warn(chalk.gray(`⚠️ Could not fetch engine info for ${dep}`));
+    }
+  }
+
+  if (!versions.length) return '>=18.0.0'; // fallback to default LTS
+
+  const sorted = versions
+    .filter(v => v.match(/^>=\d/))
+    .sort((a, b) => {
+      const aNum = parseFloat(a.replace(/[^\d.]/g, ''));
+      const bNum = parseFloat(b.replace(/[^\d.]/g, ''));
+      return bNum - aNum;
+    });
+
+  return sorted[0] || '>=18.0.0';
 }
 
-function scanForScssFiles(baseDir) {
+function scanForFiles(baseDir, ext) {
   const result = [];
   const ignoredDirs = ['node_modules', '.git', 'dist', 'build', 'vendor'];
 
   function walk(dir) {
     if (!fs.existsSync(dir)) return;
     const files = fs.readdirSync(dir, { withFileTypes: true });
-
     for (const file of files) {
       const fullPath = path.join(dir, file.name);
       if (file.isDirectory() && !ignoredDirs.includes(file.name)) {
         walk(fullPath);
-      } else if (file.name.endsWith('.scss')) {
+      } else if (file.name.endsWith(ext)) {
         result.push(fullPath);
       }
     }
@@ -69,8 +103,6 @@ function scanForScssFiles(baseDir) {
 
 function detectStacksFromFiles() {
   const stack = new Set();
-  const files = fs.readdirSync(__dirname);
-
   const stackMatchers = [
     { file: 'webpack.config.js', label: 'Webpack' },
     { file: 'vite.config.js', label: 'Vite' },
@@ -79,6 +111,7 @@ function detectStacksFromFiles() {
     { file: 'postcss.config.js', label: 'PostCSS' },
     { file: 'tailwind.config.js', label: 'Tailwind CSS' },
     { file: '.babelrc', label: 'Babel' },
+    { file: 'babel.config.js', label: 'Babel' },
     { file: 'tsconfig.json', label: 'TypeScript' },
     { file: '.stylelintrc', label: 'Stylelint' },
     { file: '.eslintrc', label: 'ESLint' },
@@ -86,18 +119,20 @@ function detectStacksFromFiles() {
   ];
 
   for (const { file, label } of stackMatchers) {
-    if (fs.existsSync(path.join(__dirname, file))) {
+    if (fs.existsSync(path.join(projectRoot, file))) {
       stack.add(label);
     }
   }
 
-  // Detect SCSS
-  const scssFiles = scanForScssFiles(__dirname);
-  if (scssFiles.length > 0) {
+  const pkg = readPackageJson();
+  if (pkg.dependencies?.bootstrap || pkg.devDependencies?.bootstrap) {
+    stack.add('Bootstrap');
+  }
+
+  if (scanForFiles(projectRoot, '.scss').length > 0) {
     stack.add('SCSS (Sass)');
   }
 
-  // Detect JS frameworks
   const lookForKeywords = [
     { keyword: 'react', label: 'React' },
     { keyword: 'vue', label: 'Vue' },
@@ -108,9 +143,8 @@ function detectStacksFromFiles() {
 
   const sourceDirs = ['src', 'components', 'js', 'scripts'];
   for (const dir of sourceDirs) {
-    const dirPath = path.join(__dirname, dir);
+    const dirPath = path.join(projectRoot, dir);
     if (!fs.existsSync(dirPath)) continue;
-
     const files = fs.readdirSync(dirPath, { withFileTypes: true });
     for (const file of files) {
       if (file.isFile() && file.name.endsWith('.js')) {
@@ -127,11 +161,34 @@ function detectStacksFromFiles() {
   return [...stack];
 }
 
+function createUpdatedPackageJson(pkg, outdated, recommendedNode) {
+  const updated = JSON.parse(JSON.stringify(pkg));
+  for (const [dep, { latest }] of Object.entries(outdated)) {
+    if (updated.dependencies?.[dep]) {
+      updated.dependencies[dep] = latest;
+    } else if (updated.devDependencies?.[dep]) {
+      updated.devDependencies[dep] = latest;
+    }
+  }
+
+  updated.engines = {
+    ...(updated.engines || {}),
+    node: recommendedNode
+  };
+
+  fs.writeFileSync(
+    path.join(projectRoot, 'package-updated.json'),
+    JSON.stringify(updated, null, 2),
+    'utf8'
+  );
+
+  console.log(chalk.green('\n📦 Created package-updated.json with latest versions and engines.node ='), chalk.cyan(recommendedNode));
+}
+
 async function askAI(prompt) {
   if (!hasOpenAIKey) {
     return '⚠️ Skipping AI suggestions (no API key found).';
   }
-
   try {
     const response = await openai.chat.completions.create({
       model: 'gpt-4',
@@ -147,32 +204,29 @@ async function askAI(prompt) {
 }
 
 async function runAnalysis() {
-  console.log(chalk.blue.bold('🔍 Analyzing theme...'));
+  console.log(chalk.blue.bold('\n🔍 Analyzing theme...'));
 
   const pkg = readPackageJson();
   const outdated = getOutdatedPackages();
-  const recommendedNode = recommendNodeVersion(pkg);
   const stack = detectStacksFromFiles();
+  const recommendedNode = await getRecommendedNodeVersionFromPackages(outdated);
 
   console.log(chalk.green('\n🧱 Detected Stack:'));
-  if (stack.length) {
-    stack.forEach(item => console.log(`- ${item}`));
-  } else {
-    console.log('Could not identify any major tools or frameworks.');
-  }
+  stack.length ? stack.forEach(item => console.log(`- ${item}`)) : console.log('None detected.');
 
-  console.log(chalk.green('\n📦 Detected Node version requirement:'), recommendedNode);
+  console.log(chalk.green('\n📦 Recommended Node version based on packages:'), chalk.cyan(recommendedNode));
 
   if (Object.keys(outdated).length) {
     console.log(chalk.yellow('\n⬆️ Outdated packages detected:'));
-    for (const [pkgName, { current, latest }] of Object.entries(outdated)) {
-      console.log(`- ${pkgName}: ${current} → ${latest}`);
+    for (const [name, { current, latest }] of Object.entries(outdated)) {
+      console.log(`- ${name}: ${current} → ${latest}`);
     }
+    createUpdatedPackageJson(pkg, outdated, recommendedNode);
   } else {
     console.log(chalk.green('✅ All packages are up to date.'));
   }
 
-  const aiPrompt = `Given the following outdated packages:\n${JSON.stringify(outdated, null, 2)}\n\nSuggest which files to update/add/delete in a typical frontend theme (like in a Drupal or Node project), to apply these updates and follow best practices. Also, recommend the correct Node.js LTS version to use.`;
+  const aiPrompt = `Given these outdated packages:\n${JSON.stringify(outdated, null, 2)}\n\nSuggest which files or configs to update in a frontend project (Drupal theme, Node-based). Also recommend the best Node.js LTS version.`;
 
   const aiResponse = await askAI(aiPrompt);
   console.log(chalk.cyan('\n🤖 AI Suggestions:\n'));

@@ -24,7 +24,9 @@ Before using this tool, make sure you have the following installed:
 
    Use `npm -v` to verify it's installed.
 
-3. **OpenAI API Key**
+3. **OpenAI API Key** (for AI suggestions)
+
+  > Get one from [https://platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys)
 
 ---
 
@@ -41,6 +43,24 @@ Or use it locally in a project:
 ```bash
 npm install --save-dev @kirank911/theme-ai
 ```
+
+---
+
+## 🔐 Setup OpenAI API Key
+
+To use AI-powered features, you need to provide your OpenAI API key.
+
+    ```bash
+    bash -c 'read -p "Enter your OpenAI API Key: " key && echo "OPENAI_API_KEY=$key" > .env'
+    ```
+
+This will generate a .env file in your project root like:
+
+    ```bash
+    OPENAI_API_KEY=sk-xxxxxxx
+    ```
+
+You can get your key from [https://platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys).
 
 ---
 
@@ -65,26 +85,6 @@ npm run analyze
 ```
 
 Make sure you are inside the directory containing `package.json`.
-
----
-
-## 🔐 Setup OpenAI API Key
-
-To enable AI-based recommendations:
-
-1. Create a `.env` file in your project root:
-
-    ```bash
-    touch .env
-    ```
-
-2. Add your API key:
-
-    ```bash
-    OPENAI_API_KEY=your-openai-key-here
-    ```
-
-You can get your key from [https://platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys).
 
 ---
 
@@ -115,11 +115,13 @@ You can get your key from [https://platform.openai.com/account/api-keys](https:/
 - ESLint
 - Tailwind CSS
 
-📦 Detected Node version requirement: >=18.x (based on dependencies)
+📦 Recommended Node version based on packages: >=18.x
 
 ⬆️ Outdated packages detected:
 - webpack: 5.60.0 → 5.88.1
 - tailwindcss: 3.3.0 → 3.4.1
+
+📦 Created package-updated.json with latest versions and engines.node = >=18.x
 
 🤖 AI Suggestions:
 - Update `webpack`, `tailwindcss` in your package.json
