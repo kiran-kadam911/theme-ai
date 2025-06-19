@@ -26,7 +26,7 @@ Before using this tool, make sure you have the following installed:
 
 3. **OpenAI API Key** (for AI suggestions)
 
-  > Get one from [https://platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys)
+  Get one from [https://platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys)
 
 ---
 
@@ -49,16 +49,12 @@ npm install --save-dev @kirank911/theme-ai
 ## 🔐 Setup OpenAI API Key
 
 To use AI-powered features, you need to provide your OpenAI API key.
-
-    ```bash
+    
     bash -c 'read -p "Enter your OpenAI API Key: " key && echo "OPENAI_API_KEY=$key" > .env'
-    ```
 
 This will generate a .env file in your project root like:
 
-    ```bash
     OPENAI_API_KEY=sk-xxxxxxx
-    ```
 
 You can get your key from [https://platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys).
 
