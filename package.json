@@ -1,6 +1,6 @@
 {
   "name": "@kirank911/theme-ai",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Analyze your frontend theme stack and dependencies using OpenAI",
   "bin": {
     "theme-ai": "./theme-ai.mjs"
