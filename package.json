@@ -21,6 +21,10 @@
     "name": "Kiran Kadam",
     "url": "https://kiran-kadam911.github.io/kirank/"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kiran-kadam911/theme-ai"
+  },
   "license": "MIT",
   "dependencies": {
     "npm-check-updates": "^18.0.1",
